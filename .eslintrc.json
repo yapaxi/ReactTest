@@ -1,0 +1,21 @@
+{
+    "extends": [
+        "eslint:recommended",
+        "plugin:react/recommended"
+    ],
+    "plugins":[
+        "react"
+    ],
+    "ecmaFeatures": {
+        "jsx": true
+    },
+    "parserOptions": {
+        "ecmaVersion": 6,
+        "sourceType": "module"
+    },
+    "globals": {
+        "fetch" : true,
+        "setTimeout": true,
+        "Promise" : true
+    }
+}
