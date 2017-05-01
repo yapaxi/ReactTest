@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import RMAService from '../../services/RMAService.js';
+import { connect } from 'react-refetch'
 
 const Style = {
     paddingTop: 10,
@@ -11,66 +11,28 @@ const Style = {
 }
 
 class RMAClaimView extends Component {
-
-    constructor(props){
-        super(props);
-
-        this.state = {
-            return: null,
-            isLoading: true,
-            inputEnabled: true
-        }
-        this.version = 0;
-        this.handleNewReturn = this.handleNewReturn.bind(this);
-        this.handleAction = this.handleAction.bind(this);
-    }
-
-    handleNewReturn(returnId) {
-        this.version = this.version + 1;
-        const newVersion = this.version;
-        RMAService.getReturn(returnId).then(e => {
-            if (newVersion === this.version) {
-                this.setState({
-                    return: e,
-                    isLoading: false,
-                    inputEnabled: true
-                })
-            }
-        });
-    }
-
-    handleAction(action) {
-        this.setState({inputEnabled: false});
-        RMAService
-            .invokeAction(this.props.match.params.id, action)
-            .then(() => this.handleNewReturn(this.props.match.params.id));
-    }
-
-    componentDidMount() {
-        this.handleNewReturn(this.props.match.params.id);
-    }
-
-    componentWillReceiveProps(nextProps) {
-        if (nextProps.match.params.id !== this.props.match.params.id) {
-            this.setState({isLoading: true});
-            this.handleNewReturn(nextProps.match.params.id);
-        }
-    }
-
     render() {
+        const { returnFetch } = this.props;
+        let jsx;
+        if (returnFetch.pending) {
+            jsx = <div>Loading...</div>
+        } else if (returnFetch.rejected) {
+            jsx = <div>Error: {returnFetch.reason}</div>
+        } else if (returnFetch.fulfilled) {
+            jsx = <div>
+                    <h2>{this.props.match.params.name}</h2>
+                    <div>id: {this.props.match.params.id}</div>
+                    <ReturnView returnObj={returnFetch.value} 
+                                actionHandler={this.props.invokeAction} 
+                                inputEnabled={true}/>
+                  </div>
+        }
         return (
             <div style={Style}>
-                {this.state.isLoading 
-                    ? <div>Loading...</div>
-                    : <div>
-                        <h2>{this.props.match.params.name}</h2>
-                        <div>id: {this.props.match.params.id}</div>
-                        <ReturnView returnObj={this.state.return} actionHandler={this.handleAction} inputEnabled={this.state.inputEnabled}/>
-                      </div>}
+                {jsx}
             </div>
         )
     }
-
 }
 
 const ReturnView = ({returnObj, actionHandler, inputEnabled}) => (
@@ -107,6 +69,9 @@ ReturnView.propTypes = {
 }
 
 RMAClaimView.propTypes = {
+    returnFetch: PropTypes.any,
+    refresh: PropTypes.func,
+    invokeAction: PropTypes.func,
     match: PropTypes.shape({
         params: PropTypes.shape({
             id: PropTypes.string.isRequired,
@@ -116,4 +81,33 @@ RMAClaimView.propTypes = {
 }
 
 
-export default RMAClaimView
+export default connect(props => {
+    const url = `http://localhost:51231/api/returns/${props.match.params.id}`;
+    return {
+        returnFetch: url,
+        invokeAction: (action) => ({
+            actionInvocation: {
+                url: `http://localhost:51231/api/returns/${props.match.params.id}`,
+                method: "POST",
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: action
+                }),
+                andThen: () => ({
+                    returnFetch: {
+                        url: url,
+                        force: true,
+                        refreshing: true
+                    }
+                })
+            }
+        }),
+        refresh: () => ({
+            returnFetch: {
+                url: url,
+                force: true,
+                refreshing: true
+            }
+        })
+    }
+})(RMAClaimView)

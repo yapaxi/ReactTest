@@ -12,7 +12,8 @@
     "eslint-plugin-react": "6.10.3",
     "prop-types": "15.5.8",
     "react-scripts": "0.9.5",
-    "whatwg-fetch": "2.0.3"
+    "whatwg-fetch": "2.0.3",
+    "react-refetch": "1.0.0"
   },
   "scripts": {
     "start": "react-scripts start",
