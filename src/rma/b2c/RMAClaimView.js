@@ -11,6 +11,12 @@ const Style = {
 }
 
 class RMAClaimView extends Component {
+
+    shouldComponentUpdate(nextProps) {
+        const nextIsAfterPostPendingRefresh = this.props.isPost.value && nextProps.returnFetch.pending;
+        return !nextIsAfterPostPendingRefresh;
+    }
+    
     render() {
         const { returnFetch } = this.props;
         let jsx;
@@ -24,7 +30,7 @@ class RMAClaimView extends Component {
                     <div>id: {this.props.match.params.id}</div>
                     <ReturnView returnObj={returnFetch.value} 
                                 actionHandler={this.props.invokeAction} 
-                                inputEnabled={true}/>
+                                inputEnabled={!this.props.isPost.value}/>
                   </div>
         }
         return (
@@ -69,7 +75,11 @@ ReturnView.propTypes = {
 }
 
 RMAClaimView.propTypes = {
+    isPost: PropTypes.shape({
+        value: PropTypes.bool
+    }),
     returnFetch: PropTypes.any,
+    actionInvocation: PropTypes.any,
     refresh: PropTypes.func,
     invokeAction: PropTypes.func,
     match: PropTypes.shape({
@@ -85,7 +95,13 @@ export default connect(props => {
     const url = `http://localhost:51231/api/returns/${props.match.params.id}`;
     return {
         returnFetch: url,
+        isPost: {
+            value: false
+        },
         invokeAction: (action) => ({
+            isPost: {
+                value: true
+            },
             actionInvocation: {
                 url: `http://localhost:51231/api/returns/${props.match.params.id}`,
                 method: "POST",
@@ -96,8 +112,10 @@ export default connect(props => {
                 andThen: () => ({
                     returnFetch: {
                         url: url,
-                        force: true,
-                        refreshing: true
+                        force: true
+                    },
+                    isPost: {
+                        value: false
                     }
                 })
             }
@@ -105,8 +123,10 @@ export default connect(props => {
         refresh: () => ({
             returnFetch: {
                 url: url,
-                force: true,
-                refreshing: true
+                force: true
+            },
+            isPost: {
+                value: false
             }
         })
     }
