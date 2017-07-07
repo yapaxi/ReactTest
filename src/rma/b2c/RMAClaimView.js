@@ -1,13 +1,9 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-refetch'
+import { RMAClaimList } from '../PendingClaims.js'
 
 const Style = {
-    paddingTop: 10,
-    paddingBottom: 20,
-    paddingLeft: 10,
-    backgroundColor: "whitesmoke",
-    height: 150,
 }
 
 class RMAClaimView extends Component {
@@ -18,19 +14,16 @@ class RMAClaimView extends Component {
     }
     
     render() {
-        const { returnFetch } = this.props;
+        const { returnFetch, linesFetch } = this.props;
         let jsx;
-        if (returnFetch.pending) {
+        if (returnFetch.pending || linesFetch.pending) {
             jsx = <div>Loading...</div>
         } else if (returnFetch.rejected) {
             jsx = <div>Error: {returnFetch.reason}</div>
-        } else if (returnFetch.fulfilled) {
+        } else if (returnFetch.fulfilled && linesFetch.fulfilled) {
             jsx = <div>
-                    <h2>{this.props.match.params.name}</h2>
-                    <div>id: {this.props.match.params.id}</div>
-                    <ReturnView returnObj={returnFetch.value} 
-                                actionHandler={this.props.invokeAction} 
-                                inputEnabled={!this.props.isPost.value}/>
+                    <RMAClaimList claims={[returnFetch.value]} />
+                    <RMAClaimLines linesFetch={linesFetch} props={this.props} />
                   </div>
         }
         return (
@@ -41,37 +34,44 @@ class RMAClaimView extends Component {
     }
 }
 
-const ReturnView = ({returnObj, actionHandler, inputEnabled}) => (
-    <div>
-        <div style={{marginTop: 10}}>
-            {returnObj.availableActions.map(e => <ActionButton inputEnabled={inputEnabled}  key={e.code} name={e.name} code={e.code} handler={actionHandler} />)}
-        </div>
-    </div>
+const RMAClaimLines = ({linesFetch, props}) => (
+    <table className="table">
+        <caption>Lines</caption>
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <th>Quantity</th>
+                <th>Refund $</th>
+                <th>Shipping $</th>
+                <th>Shipping Tax $</th>
+                <th>Tax $</th>
+                <th>Expectation UPC Template</th>
+            </tr>
+            { linesFetch.fulfilled && linesFetch.value.map(e => <RMAClaimLine key={e.id} line={e} expectationFetch={props[e.id]} />)}
+        </tbody>
+    </table>
 )
 
-const ActionButton = ({inputEnabled, code, name, handler}) => (
-    <button type="Button" className={"btn btn-default " + (inputEnabled ? "" : "disabled")} onClick={() => handler(code)}>
-        {name}
-    </button>
+const RMAClaimLine = ({line, expectationFetch}) => (
+    <tr>
+        <td>{line.id}</td>
+        <td>{line.quantity}</td>
+        <td>{line.refundAmount.amount}</td>
+        <td>{line.shippingAmount.amount}</td>
+        <td>{line.shippingTax.amount}</td>
+        <td>{line.tax.amount}</td>
+        <td>{ expectationFetch && expectationFetch.fulfilled && expectationFetch.value[0].productProperties.upcTemplateId }</td>
+    </tr>
 )
 
-ActionButton.propTypes = {
-    inputEnabled: PropTypes.bool,
-    name: PropTypes.string.isRequired,
-    code: PropTypes.number.isRequired,
-    handler: PropTypes.func
+RMAClaimLines.propTypes = {
+    linesFetch: PropTypes.any,
+    props: PropTypes.any
 }
 
-ReturnView.propTypes = {
-    inputEnabled: PropTypes.bool,
-    returnObj: PropTypes.shape({
-        return: PropTypes.any,
-        availableActions: PropTypes.arrayOf(PropTypes.shape({
-            code: PropTypes.number,
-            name: PropTypes.string
-        }))
-    }),
-    actionHandler: PropTypes.func
+RMAClaimLine.propTypes = {
+    line: PropTypes.any,
+    expectationFetch: PropTypes.any
 }
 
 RMAClaimView.propTypes = {
@@ -79,22 +79,45 @@ RMAClaimView.propTypes = {
         value: PropTypes.bool
     }),
     returnFetch: PropTypes.any,
+    linesFetch: PropTypes.any,
     actionInvocation: PropTypes.any,
     refresh: PropTypes.func,
     invokeAction: PropTypes.func,
     match: PropTypes.shape({
         params: PropTypes.shape({
-            id: PropTypes.string.isRequired,
-            name: PropTypes.string.isRequired
+            id: PropTypes.string.isRequired
         })
     })
 }
 
+const mapLines = (array, getUrl) => {
+    let r = {}
+    array.forEach((e) => {
+        r[e.id] = {
+            url: getUrl(e),
+            method: "GET",
+            headers: {'Content-Type': 'application/json'},
+        }
+    });
+    return r;
+} 
 
 export default connect(props => {
-    const url = `http://localhost:51231/api/returns/${props.match.params.id}`;
+    const url = `http://localhost:55147/claims/${props.match.params.id}`;
     return {
-        returnFetch: url,
+        returnFetch: {
+            url : url,
+            method: "GET",
+            headers: {'Content-Type': 'application/json'}
+        },        
+        linesFetch: {
+            url: `http://localhost:55147/claims/${props.match.params.id}/claimLines`,
+            method: "GET",
+            headers: {'Content-Type': 'application/json'},
+            andThen: (lines) => (
+                mapLines(lines, (line) => `http://localhost:55147/claims/${props.match.params.id}/claimLines/${line.id}/expectations`)
+            )
+        },
         isPost: {
             value: false
         },
@@ -103,7 +126,7 @@ export default connect(props => {
                 value: true
             },
             actionInvocation: {
-                url: `http://localhost:51231/api/returns/${props.match.params.id}`,
+                url: `http://localhost:55147/api/returns/${props.match.params.id}`,
                 method: "POST",
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
